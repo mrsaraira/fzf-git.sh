@@ -50,12 +50,6 @@ __fzf_git_cat() {
   fi
 }
 
-__fzf_git_pager() {
-  local pager
-  pager="${FZF_GIT_PAGER:-${GIT_PAGER:-$(git config --get core.pager 2>/dev/null)}}"
-  echo "${pager:-cat}"
-}
-
 if [[ $# -eq 1 ]]; then
   branches() {
     git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=$(__fzf_git_color) | column -ts$'\t'
@@ -177,11 +171,13 @@ _fzf_git_files() {
    git ls-files "$root" | grep -vxFf <(git status -s | grep '^[^?]' | cut -c4-; echo :) | sed 's/^/   /') |
   _fzf_git_fzf -m --ansi --nth 2..,.. \
     --border-label '📁 Files' \
-    --header $'CTRL-O (open in browser) ╱ ALT-E (open in editor)\n\n' \
+    --header $'CTRL-O (open in browser) ╱ ALT-E (open in editor) / CTRL-L (show git history) / CTRL-K (show git history fancy) \n\n' \
     --bind "ctrl-o:execute-silent:bash $__fzf_git file {-1}" \
     --bind "alt-e:execute:${EDITOR:-vim} {-1} > /dev/tty" \
+    --bind "ctrl-l:execute:git log --color=always --follow -p {-1} | bat --theme=\"TwoDark\"" \
+    --bind "ctrl-k:execute:git log --color=always --follow -p {-1} | diff-so-fancy | bat --theme=\"TwoDark\"" \
     --query "$query" \
-    --preview "git diff --no-ext-diff --color=$(__fzf_git_color .) -- {-1} | $(__fzf_git_pager); $(__fzf_git_cat) {-1}" "$@" |
+    --preview "git diff --no-ext-diff --color=$(__fzf_git_color .) -- {-1} | sed 1,4d; $(__fzf_git_cat) {-1}" "$@" |
   cut -c4- | sed 's/.* -> //'
 }
 
@@ -209,7 +205,7 @@ _fzf_git_tags() {
     --border-label '📛 Tags' \
     --header $'CTRL-O (open in browser)\n\n' \
     --bind "ctrl-o:execute-silent:bash $__fzf_git tag {}" \
-    --preview "git show --color=$(__fzf_git_color .) {} | $(__fzf_git_pager)" "$@"
+    --preview "git show --color=$(__fzf_git_color .) {}" "$@"
 }
 
 _fzf_git_hashes() {
@@ -219,10 +215,10 @@ _fzf_git_hashes() {
     --border-label '🍡 Hashes' \
     --header-lines 3 \
     --bind "ctrl-o:execute-silent:bash $__fzf_git commit {}" \
-    --bind "ctrl-d:execute:grep -o '[a-f0-9]\{7,\}' <<< {} | head -n 1 | xargs git diff --color=$(__fzf_git_color) > /dev/tty" \
+    --bind "ctrl-d:execute:grep -o '[a-f0-9]\{7,\}' <<< {} | head -n 1 | xargs git diff --color=$(__fzf_git_color) > /dev/tty | bat --theme=\"TwoDark\"" \
     --bind "alt-a:change-border-label(🍇 All hashes)+reload:bash \"$__fzf_git\" all-hashes" \
     --color hl:underline,hl+:underline \
-    --preview "grep -o '[a-f0-9]\{7,\}' <<< {} | head -n 1 | xargs git show --color=$(__fzf_git_color .) | $(__fzf_git_pager)" "$@" |
+    --preview "grep -o '[a-f0-9]\{7,\}' <<< {} | head -n 1 | xargs git show --color=$(__fzf_git_color .)" "$@" |
   awk 'match($0, /[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]*/) { print substr($0, RSTART, RLENGTH) }'
 }
 
@@ -244,7 +240,7 @@ _fzf_git_stashes() {
     --border-label '🥡 Stashes' \
     --header $'CTRL-X (drop stash)\n\n' \
     --bind 'ctrl-x:reload(git stash drop -q {1}; git stash list)' \
-    -d: --preview "git show --color=$(__fzf_git_color .) {1} | $(__fzf_git_pager)" "$@" |
+    -d: --preview "git show --color=$(__fzf_git_color .) {1}" "$@" |
   cut -d: -f1
 }
 
@@ -252,7 +248,7 @@ _fzf_git_lreflogs() {
   _fzf_git_check || return
   git reflog --color=$(__fzf_git_color) --format="%C(blue)%gD %C(yellow)%h%C(auto)%d %gs" | _fzf_git_fzf --ansi \
     --border-label '📒 Reflogs' \
-    --preview "git show --color=$(__fzf_git_color .) {1} | $(__fzf_git_pager)" "$@" |
+    --preview "git show --color=$(__fzf_git_color .) {1}" "$@" |
   awk '{print $1}'
 }
 
